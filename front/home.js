@@ -1,4 +1,4 @@
- /* ---------- Projetos ---------- */
+/* ---------- Projetos ---------- */
     const BEHANCE = "https://www.behance.net/gallery/";
     const IMG = "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/";
     const projects = [
@@ -367,6 +367,15 @@
     let journeySceneWidth = 0;
     let journeyPinTop = 88;
     const journeyEdgeHold = 96;
+    const journeyEndBuffer = 8; // folga abaixo do último card, para a borda inferior não ser cortada
+
+    // Altura real do conteúdo da trilha: até a borda inferior do último card.
+    // (track.scrollHeight ignora a margem do último item e pode ficar defasado)
+    const getTrackContentHeight = () => {
+      const items = journeyTrack.querySelectorAll(".tl-item");
+      const last = items[items.length - 1];
+      return last.offsetTop + last.offsetHeight + journeyEndBuffer;
+    };
 
     const getDocumentTop = element => {
       let top = 0;
@@ -408,7 +417,7 @@
         journeyScene.style.left = "0px";
         journeyScene.style.width = "100%";
         journeyTimeline.style.height = `${journeySideStack.getBoundingClientRect().height}px`;
-        journeyScrollDistance = Math.max(0, journeyTrack.scrollHeight - journeyTimeline.clientHeight);
+        journeyScrollDistance = Math.max(0, getTrackContentHeight() - journeyTimeline.clientHeight);
         journeyStage.style.height = `${journeyScene.offsetHeight + journeyScrollDistance + journeyEdgeHold * 2}px`;
         journeyPinTop = Math.max(88, (window.innerHeight - journeyScene.offsetHeight) / 2);
         const sceneRect = journeyScene.getBoundingClientRect();
@@ -429,8 +438,22 @@
         journeyScrollDistance = 0;
       }
     };
+    // Re-mede sempre que algo que influencia a conta mudar de tamanho
+    // (fonte web carregando, troca de idioma, imagens acima da seção...).
+    let journeySyncQueued = false;
+    const queueJourneySync = () => {
+      if (journeySyncQueued) return;
+      journeySyncQueued = true;
+      requestAnimationFrame(() => {
+        journeySyncQueued = false;
+        syncJourneyTimeline();
+      });
+    };
     syncJourneyTimeline();
-    new ResizeObserver(syncJourneyTimeline).observe(journeySideStack);
+    const journeyResizeObs = new ResizeObserver(queueJourneySync);
+    [journeySideStack, journeyTrack, journeyScene, document.body].forEach(el => journeyResizeObs.observe(el));
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(queueJourneySync);
+    window.addEventListener("load", queueJourneySync);
     window.addEventListener("resize", syncJourneyTimeline);
     window.addEventListener("scroll", updateJourneyProgress, { passive: true });
 
